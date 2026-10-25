@@ -8,7 +8,7 @@
         </intent>
     </queries>
     <application
-        android:label="Music STT Probe"
+        android:label="Voice Probe V2"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:allowBackup="false"
         android:usesCleartextTraffic="false"

@@ -45,7 +45,8 @@ public final class MainActivity extends Activity {
     private TextView status, transcript, diagnostics;
     private ScrollView reportScroll;
     private Spinner languageSpinner;
-    private Button permissionButton, startButton, stopButton;
+    private Button permissionButton, startButton, systemButton, downloadButton, stopButton;
+    private SpeechRecognizer modelDownloader;
     private SpeechRecognizer recognizer;
     private int generation = 0;
     private boolean startIssued;
@@ -56,7 +57,7 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(10, 15, 28));
         getWindow().setNavigationBarColor(Color.rgb(10, 15, 28));
         createUi();
-        log("APP_STARTED: isolated STT probe; no background listening; no Internet permission.");
+        log("APP_STARTED: Voice Probe V2 with system/default and offline recognition; no app Internet permission.");
         log("SDK_INT=" + Build.VERSION.SDK_INT +
                 "; Android=" + Build.VERSION.RELEASE + "; locale=" + Locale.getDefault().toLanguageTag());
         refreshCapabilities();
@@ -71,7 +72,7 @@ public final class MainActivity extends Activity {
         root.setBackgroundColor(bg);
         setContentView(root);
 
-        TextView heading = label("Music STT Probe", 25, text, true);
+        TextView heading = label("Voice Probe V2", 25, text, true);
         root.addView(heading);
         root.addView(label("تست مستقل تشخیص گفتار محلی؛ بدون ارتباط با Music Copilot", 13, muted, false));
         root.addView(space(12));
@@ -93,16 +94,24 @@ public final class MainActivity extends Activity {
         root.addView(space(10));
 
         permissionButton = button("۱. درخواست مجوز میکروفون");
-        startButton = button("۲. Start listening / شروع شنیدن");
+        startButton = button("2) TEST ON-DEVICE ONLY STT");
+        systemButton = button("1) TEST SYSTEM DEFAULT STT");
+        downloadButton = button("3) REQUEST OFFLINE MODEL DOWNLOAD");
         stopButton = button("Stop / توقف");
         root.addView(permissionButton);
         root.addView(space(7));
+        root.addView(systemButton);
+        root.addView(space(7));
         root.addView(startButton);
+        root.addView(space(7));
+        root.addView(downloadButton);
         root.addView(space(7));
         root.addView(stopButton);
         stopButton.setEnabled(false);
         permissionButton.setOnClickListener(v -> requestMic());
-        startButton.setOnClickListener(v -> startListening());
+        startButton.setOnClickListener(v -> startListening(true));
+        systemButton.setOnClickListener(v -> startListening(false));
+        downloadButton.setOnClickListener(v -> requestModelDownload());
         stopButton.setOnClickListener(v -> abort("USER_STOPPED"));
 
         root.addView(space(10));
@@ -151,6 +160,9 @@ public final class MainActivity extends Activity {
 
     private void refreshCapabilities() {
         boolean permission = micGranted();
+        downloadButton.setEnabled(Build.VERSION.SDK_INT >= 33);
+        try { systemButton.setEnabled(SpeechRecognizer.isRecognitionAvailable(this)); }
+        catch (Exception e) { log("DEFAULT_AVAILABILITY_ERROR=" + detail(e)); systemButton.setEnabled(true); }
         permissionButton.setText(permission ? "مجوز میکروفون: Allow ✓" :
                 "۱. درخواست مجوز میکروفون");
         log("RECORD_AUDIO=" + (permission ? "GRANTED" : "DENIED"));
@@ -192,7 +204,8 @@ public final class MainActivity extends Activity {
         refreshCapabilities();
     }
 
-    private void startListening() {
+    private void startListening(boolean offlineOnly) {
+        log("BUTTON_MODE=" + (offlineOnly ? "ON_DEVICE_ONLY" : "SYSTEM_DEFAULT"));
         if (recognizer != null) {
             log("IGNORED_SECOND_START: active session already owns recognizer");
             return;
@@ -203,13 +216,13 @@ public final class MainActivity extends Activity {
             requestMic();
             return;
         }
-        if (Build.VERSION.SDK_INT < 31) {
-            log("START_REJECTED: API level below 31; no cloud fallback.");
+        if (offlineOnly && Build.VERSION.SDK_INT < 31) {
+            log("START_REJECTED: on-device API requires 31+.");
             return;
         }
         final boolean available;
         try {
-            available = SpeechRecognizer.isOnDeviceRecognitionAvailable(this);
+            available = offlineOnly ? SpeechRecognizer.isOnDeviceRecognitionAvailable(this) : SpeechRecognizer.isRecognitionAvailable(this);
         } catch (Exception e) {
             status("خطا در بررسی موتور محلی");
             log("START_AVAILABILITY_EXCEPTION=" + detail(e));
@@ -217,7 +230,7 @@ public final class MainActivity extends Activity {
         }
         if (!available) {
             status("موتور STT محلی وجود ندارد");
-            log("START_REJECTED: isOnDeviceRecognitionAvailable=false. Check Android speech services and offline language pack.");
+            log("START_REJECTED: provider unavailable mode=" + (offlineOnly ? "ON_DEVICE_ONLY" : "SYSTEM_DEFAULT"));
             return;
         }
 
@@ -225,17 +238,19 @@ public final class MainActivity extends Activity {
         startedAtMs = SystemClock.elapsedRealtime();
         startIssued = false;
         String languageTag = LANGUAGE_TAGS[languageSpinner.getSelectedItemPosition()];
-        log("SESSION_" + token + "_START: language=" + languageTag + "; provider=ON_DEVICE_ONLY");
+        log("SESSION_" + token + "_START: language=" + languageTag + "; provider=" + (offlineOnly ? "ON_DEVICE_ONLY" : "SYSTEM_DEFAULT"));
         transcript.setText("در انتظار گفتار...");
         try {
-            recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
-            log("CREATE_ON_DEVICE_RECOGNIZER=SUCCESS");
+            closeDownloader();
+            recognizer = offlineOnly ? SpeechRecognizer.createOnDeviceSpeechRecognizer(this) : SpeechRecognizer.createSpeechRecognizer(this);
+            log("CREATE_RECOGNIZER_SUCCESS mode=" + (offlineOnly ? "ON_DEVICE_ONLY" : "SYSTEM_DEFAULT"));
         } catch (Exception e) {
             log("CREATE_ON_DEVICE_RECOGNIZER=FAILED " + detail(e));
             status("خطا در ساخت موتور تشخیص گفتار");
             return;
         }
         startButton.setEnabled(false);
+        systemButton.setEnabled(false);
         stopButton.setEnabled(true);
         status("در حال بررسی پشتیبانی زبان محلی...");
 
@@ -244,7 +259,7 @@ public final class MainActivity extends Activity {
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         request.putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag);
         request.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languageTag);
-        request.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
+        request.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, offlineOnly);
         request.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
         request.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
 
@@ -349,7 +364,7 @@ public final class MainActivity extends Activity {
                     @Override public void onError(int error) {
                         if (!current(token) || startIssued) return;
                         log("SUPPORT_QUERY_ERROR code=" + error + "; name=" +
-                                errorName(error) + ". Still trying ON_DEVICE recognizer.");
+                                errorName(error) + ". Still trying requested mode.");
                         issueStart(token, request);
                     }
                 });
@@ -384,6 +399,46 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void requestModelDownload() {
+        if (Build.VERSION.SDK_INT < 33) { log("MODEL_DOWNLOAD_UNSUPPORTED: needs API33+"); return; }
+        if (recognizer != null) { log("MODEL_DOWNLOAD_REJECTED: stop STT session first"); return; }
+        try {
+            closeDownloader();
+            if (!SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                log("MODEL_DOWNLOAD_REJECTED: no on-device recognition service"); return;
+            }
+            modelDownloader = SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            String tag = LANGUAGE_TAGS[languageSpinner.getSelectedItemPosition()];
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, tag);
+            log("MODEL_DOWNLOAD_REQUESTED language=" + tag + "; provider=ON_DEVICE_ONLY");
+            status("درخواست دانلود مدل " + tag);
+            if (Build.VERSION.SDK_INT >= 34) {
+                modelDownloader.triggerModelDownload(intent, getMainExecutor(), new android.speech.ModelDownloadListener() {
+                    @Override public void onProgress(int progress) { log("MODEL_DOWNLOAD_PROGRESS=" + progress); }
+                    @Override public void onSuccess() { log("MODEL_DOWNLOAD_SUCCESS"); status("مدل آماده شد؛ Offline را تست کن"); closeDownloader(); }
+                    @Override public void onScheduled() { log("MODEL_DOWNLOAD_SCHEDULED"); status("دانلود زمان‌بندی شد"); closeDownloader(); }
+                    @Override public void onError(int code) { log("MODEL_DOWNLOAD_ERROR=" + code + " " + errorName(code)); status("خطای دانلود مدل: " + code); closeDownloader(); }
+                });
+            } else {
+                modelDownloader.triggerModelDownload(intent);
+                log("MODEL_DOWNLOAD_TRIGGERED; API33 has no callback for progress");
+            }
+        } catch (Exception e) {
+            log("MODEL_DOWNLOAD_EXCEPTION " + detail(e));
+            closeDownloader();
+        }
+    }
+
+    private void closeDownloader() {
+        if (modelDownloader != null) {
+            SpeechRecognizer old = modelDownloader;
+            modelDownloader = null;
+            try { old.destroy(); } catch (Exception e) { log("MODEL_DOWNLOAD_CLEANUP=" + detail(e)); }
+        }
+    }
+
     private void abort(String why) {
         if (recognizer == null) return;
         log("SESSION_CANCELLED reason=" + why + "; elapsed_ms=" + elapsed());
@@ -401,6 +456,7 @@ public final class MainActivity extends Activity {
         try { old.destroy(); }
         catch (Exception e) { log("DESTROY_EXCEPTION=" + detail(e)); }
         startButton.setEnabled(true);
+        systemButton.setEnabled(true);
         stopButton.setEnabled(false);
         log("SESSION_CLOSED; audio/transcript not saved to storage");
     }
@@ -475,6 +531,7 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        closeDownloader();
         if (recognizer != null) abort("ACTIVITY_DESTROYED");
         super.onDestroy();
     }

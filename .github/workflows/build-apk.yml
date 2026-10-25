@@ -1,4 +1,4 @@
-name: Build isolated STT diagnostic APK
+name: Build Voice Probe V2 APK
 on:
   push:
     branches: [ main ]
@@ -29,12 +29,12 @@ jobs:
       - name: Generate file digest
         run: |
           mkdir -p release
-          cp app/build/outputs/apk/debug/app-debug.apk release/Music-STT-Probe-debug.apk
-          sha256sum release/Music-STT-Probe-debug.apk > release/Music-STT-Probe-debug.apk.sha256
-          stat -c 'APK bytes: %s' release/Music-STT-Probe-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk release/Voice-Probe-V2-debug.apk
+          sha256sum release/Voice-Probe-V2-debug.apk > release/Voice-Probe-V2-debug.apk.sha256
+          stat -c 'APK bytes: %s' release/Voice-Probe-V2-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Music-STT-Probe-Android-APK
+          name: Voice-Probe-V2-Android-APK
           path: release/
           retention-days: 14
           if-no-files-found: error
