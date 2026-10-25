@@ -1,0 +1,5 @@
+GitHub repository write-access test
+Repository: latticeward-labs/Testing-music-copilot
+Created by ChatGPT on 2026-10-25.
+Purpose: Verify that the connected GitHub app can create a text file in this testing-only repository.
+No changes were made to the main Music Copilot repository.
