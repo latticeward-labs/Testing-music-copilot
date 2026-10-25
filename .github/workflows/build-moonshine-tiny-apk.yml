@@ -58,8 +58,8 @@ jobs:
         run: |
           mkdir -p release
           cp moonshineprobe/build/outputs/apk/debug/moonshineprobe-debug.apk release/Moonshine-Tiny-Silero-VAD-ARM64.apk
-          sha256sum release/Moonshine-Tiny-Offline-ARM64.apk > release/Moonshine-Tiny-Offline-ARM64.apk.sha256
-          stat -c "APK bytes: %s" release/Moonshine-Tiny-Offline-ARM64.apk
+          sha256sum release/Moonshine-Tiny-Silero-VAD-ARM64.apk > release/Moonshine-Tiny-Silero-VAD-ARM64.apk.sha256
+          stat -c "APK bytes: %s" release/Moonshine-Tiny-Silero-VAD-ARM64.apk
       - uses: actions/upload-artifact@v4
         with:
           name: Moonshine-Tiny-Silero-VAD-APK
