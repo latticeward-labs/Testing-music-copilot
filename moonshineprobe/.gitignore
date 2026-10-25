@@ -1,2 +1,3 @@
 libs/
 src/main/assets/sherpa-onnx-moonshine-tiny-en-quantized-2026-02-27/
+src/main/assets/silero_vad.onnx

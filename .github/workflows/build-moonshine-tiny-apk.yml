@@ -40,6 +40,12 @@ jobs:
           test -s "moonshineprobe/src/main/assets/$model/decoder_model_merged.ort"
           test -s "moonshineprobe/src/main/assets/$model/tokens.txt"
           rm -rf "moonshineprobe/src/main/assets/$model/test_wavs"
+      - name: Bundle Silero on-device VAD model
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 5 "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx" -o moonshineprobe/src/main/assets/silero_vad.onnx
+          test -s moonshineprobe/src/main/assets/silero_vad.onnx
+          du -h moonshineprobe/src/main/assets/silero_vad.onnx
       - name: Embed official Sherpa ONNX Android AAR
         run: |
           set -euo pipefail
@@ -51,12 +57,12 @@ jobs:
       - name: Stage APK
         run: |
           mkdir -p release
-          cp moonshineprobe/build/outputs/apk/debug/moonshineprobe-debug.apk release/Moonshine-Tiny-Offline-ARM64.apk
+          cp moonshineprobe/build/outputs/apk/debug/moonshineprobe-debug.apk release/Moonshine-Tiny-Silero-VAD-ARM64.apk
           sha256sum release/Moonshine-Tiny-Offline-ARM64.apk > release/Moonshine-Tiny-Offline-ARM64.apk.sha256
           stat -c "APK bytes: %s" release/Moonshine-Tiny-Offline-ARM64.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Moonshine-Tiny-Offline-STT-APK
+          name: Moonshine-Tiny-Silero-VAD-APK
           path: release/
           retention-days: 14
           if-no-files-found: error
