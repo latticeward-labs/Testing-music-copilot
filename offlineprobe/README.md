@@ -24,3 +24,9 @@ Vosk dependency: https://central.sonatype.com/artifact/com.alphacephei/vosk-andr
 3. Press \`START OFFLINE STT\`, say "Play the music", then \`STOP AND FINALIZE\`.
 4. Check for \`RECOGNITION_SUCCESS\` in log and copy full report.
 This verifies only STT, not Music Copilot integration.
+
+## V1.1 - Smaller ABI-specific builds
+- ARM64 APK: `Offline-Vosk-STT-Probe-arm64-v8a.apk` for 64-bit Android phones.
+- ARM32 APK: `Offline-Vosk-STT-Probe-armeabi-v7a.apk` for supported older devices.
+- Speech model and recognizer logic unchanged. Only irrelevant native ABIs excluded.
+- Artifact: `Offline-Vosk-STT-Probe-Optimized-APK`. GitHub Actions builds only; no tests or lint.

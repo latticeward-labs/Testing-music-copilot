@@ -1,4 +1,4 @@
-name: Build bundled offline English STT APK
+name: Build optimized offline English STT APK
 on:
   push:
     branches: [main]
@@ -47,12 +47,18 @@ jobs:
       - name: Prepare stand-alone APK and SHA256
         run: |
           mkdir -p release
-          cp offlineprobe/build/outputs/apk/debug/offlineprobe-debug.apk release/Offline-Vosk-STT-Probe-debug.apk
-          sha256sum release/Offline-Vosk-STT-Probe-debug.apk > release/Offline-Vosk-STT-Probe-debug.apk.sha256
-          stat -c 'APK bytes: %s' release/Offline-Vosk-STT-Probe-debug.apk
+          set -euo pipefail
+          for abi in arm64-v8a armeabi-v7a; do
+            apk="offlineprobe/build/outputs/apk/debug/offlineprobe-${abi}-debug.apk"
+            test -s "$apk"
+            output="release/Offline-Vosk-STT-Probe-${abi}.apk"
+            cp "$apk" "$output"
+            sha256sum "$output" > "${output}.sha256"
+            stat -c "$abi APK bytes: %s" "$output"
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: Offline-Vosk-STT-Probe-APK
+          name: Offline-Vosk-STT-Probe-Optimized-APK
           path: release/
           retention-days: 14
           if-no-files-found: error
