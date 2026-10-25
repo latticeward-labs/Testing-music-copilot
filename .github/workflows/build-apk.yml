@@ -1,0 +1,38 @@
+name: Build isolated STT diagnostic APK
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    name: Build debug APK only (NO tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install exact Android SDK
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Assemble APK without running tests or lint
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Generate file digest
+        run: |
+          mkdir -p release
+          cp app/build/outputs/apk/debug/app-debug.apk release/Music-STT-Probe-debug.apk
+          sha256sum release/Music-STT-Probe-debug.apk > release/Music-STT-Probe-debug.apk.sha256
+          stat -c 'APK bytes: %s' release/Music-STT-Probe-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Music-STT-Probe-Android-APK
+          path: release/
+          retention-days: 14
+          if-no-files-found: error
